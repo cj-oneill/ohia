@@ -1,3 +1,4 @@
+clear; clc; close all;
 %% Simulated Land Scenes for Synthetic Aperture Radar Image Formation
 % A synthetic aperture radar (SAR) system uses platform motion to mimic a longer 
 % aperture to improve cross-range resolution. SAR data is often collected using 
@@ -29,20 +30,20 @@
 rng(2021)
 
 % Create terrain
-xLimits         = [900 1200]; % x-axis limits of terrain (m)
-yLimits         = [-200 200]; % y-axis limits of terrain (m)
-roughnessFactor = 1.75;       % Roughness factor
-initialHgt      = 0;          % Initial height (m)
-initialPerturb  = 200;        % Overall height of map (m) 
-numIter         = 8;          % Number of iterations
+xLimits         = [1000 1020]; % x-axis limits of terrain (m)
+yLimits         = [-10 10]; % y-axis limits of terrain (m)
+roughnessFactor = 1.8;       % Roughness factor
+initialHgt      = 3;          % Initial height (m)
+initialPerturb  = .5;        % Overall height of map (m) 
+numIter         = 10;          % Number of iterations
 [x,y,A] = helperRandomTerrainGenerator(roughnessFactor,initialHgt, ....
     initialPerturb,xLimits(1),xLimits(2), ...
     yLimits(1),yLimits(2),numIter);
 A(A < 0) = 0; % Fill-in areas below 0
 xvec = x(1,:); 
 yvec = y(:,1);
-resMapX = mean(diff(xvec))
-resMapY = mean(diff(yvec))
+resMapX = mean(diff(xvec));
+resMapY = mean(diff(yvec));
 % Plot simulated terrain
 helperPlotSimulatedTerrain(xvec,yvec,A)
 %% Specify the SAR System and Scenario
@@ -473,6 +474,8 @@ function helperPlotGroundTruth(xvec,yvec,A,rdrpos1,rdrpos2,targetpos)
 f = figure('Position',[505 443 997 535]);
 movegui(f,'center');
 % Plot boundary. Set plot boundary much lower than 0 for rendering reasons. 
+plot_boundary_x = [0 1200];
+plot_boundary_y = [-200 200];
 hLim = surf([0 1200],[-200 200].',-100*ones(2),'FaceColor',[0.8 0.8 0.8],'FaceAlpha',0.7);
 hold on;
 hS = surf(xvec,yvec,A);
