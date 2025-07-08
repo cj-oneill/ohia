@@ -30,8 +30,8 @@ clear; clc; close all;
 rng(2021)
 
 % Create terrain
-xLimits         = [1000 1020]; % x-axis limits of terrain (m)
-yLimits         = [-10 10]; % y-axis limits of terrain (m)
+xLimits         = [1000 1040]; % x-axis limits of terrain (m)
+yLimits         = [-20 20]; % y-axis limits of terrain (m)
 roughnessFactor = 1.8;       % Roughness factor
 initialHgt      = 3;          % Initial height (m)
 initialPerturb  = .5;        % Overall height of map (m) 
@@ -53,9 +53,9 @@ helperPlotSimulatedTerrain(xvec,yvec,A)
 % function. 
 
 % Define key radar parameters
-freq = 1e9;                        % Carrier frequency (Hz)
+freq = 9.7e9;                        % Carrier frequency (Hz)
 [lambda,c] = freq2wavelen(freq);   % Wavelength (m) 
-bw = 30e6;                         % Signal bandwidth (Hz)
+bw = 600e6;                         % Signal bandwidth (Hz)
 fs = 60e6;                         % Sampling frequency (Hz)
 tpd = 3e-6;                        % Pulse width (sec) 
 
@@ -73,13 +73,18 @@ sqa = 0;                           % Squint angle (deg)
 % The synthetic aperture length is 100 m as calculated by |sarlen|. 
 
 % Platform properties
-v = 100;                           % Speed of the platform (m/s) 
-dur = 1;                           % Duration of flight (s) 
-rdrhgt = 1000;                     % Height of platform (m) 
+% mu = 3.986e14;                     % Earth (m^3s^-2)
+% rad_earth = 6378e3;                % Earth Radius (m)
+% rdrhgt = 600e3;                    % Height of platform (m) 
+% v = sqrt(mu/(rad_earth + rdrhgt)); % Speed of the platform (m/s) 
+
+rdrhgt = 1000;
+v = 100;
+dur = 1;                         % Duration of flight (s) 
 rdrpos1 = [0 0 rdrhgt];            % Start position of the radar (m)
 rdrvel = [0 v 0];                  % Radar plaform velocity
 rdrpos2 = rdrvel*dur + rdrpos1;    % End position of the radar (m)
-len = sarlen(v,dur)                % Synthetic aperture length (m)
+len = sarlen(v,dur);               % Synthetic aperture length (m)
 %% 
 % Define the targets. The targets in this example are stationary and are intended 
 % to represent calibration targets. Set the target heights to 110 meters, relative 
@@ -110,7 +115,7 @@ depang = depressionang(rdrhgt,rc,'Flat','TargetHeight',mean(tgthgts)); % Depress
 grazang = depang; % Grazing angle (deg)
 
 % Azimuth resolution
-azResolution = sarazres(rc,lambda,len)  % Cross-range resolution (m)
+azResolution = sarazres(rc,lambda,len);  % Cross-range resolution (m)
 %% 
 % Then, determine an appropriate pulse repetition frequency (PRF) for the SAR 
 % system. In a SAR system, the PRF has dual implications. The PRF not only determines 
@@ -124,8 +129,6 @@ azResolution = sarazres(rc,lambda,len)  % Cross-range resolution (m)
 [swlen,swwidth] = aperture2swath(rc,lambda,apertureLength,grazang);
 [prfmin,prfmax] = sarprfbounds(v,azResolution,swlen,grazang)
 %% 
-% For this example, set the PRF to 500 Hz. 
-
 % Select a PRF within the PRF bounds
 prf = 500; % Pulse repetition frequency (Hz)
 %% 
