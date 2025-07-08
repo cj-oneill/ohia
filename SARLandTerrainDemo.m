@@ -220,9 +220,12 @@ helperPlotReflectivityMap(xvec,yvec,A,reflectivityType,rdrpos1,rdrpos2,targetpos
 % distribution's corresponding properties. For a Rayleigh distribution, you can 
 % modify the |SpeckleScale| property. 
 
-reflectivityMap = surfaceReflectivity('Custom','Frequency',freqTable, ...
-    'GrazingAngle',grazTable,'Reflectivity',reflectivityLayers, ...
-    'Speckle','Rayleigh')
+% reflectivityMap = surfaceReflectivity('Custom','Frequency',freqTable, ...
+%     'GrazingAngle',grazTable,'Reflectivity',reflectivityLayers, ...
+%     'Speckle','Rayleigh')
+surfaceReflectivityLand('Model','Nathanson','Frequency',freqTable, ...
+    'GrazingAngle',grazTable,'Speckle','Rayleigh','LandType','Woods')
+      %Choose LandType as 'Jungle'?
 %% 
 % Add a land surface to the radar scenario using |landSurface|. Assign the random 
 % height map previously generated and the reflectivity map to the land surface. 
@@ -444,7 +447,12 @@ function cmap = landColormap(n)
 % Output: 
 %    - cmap  = n-by-3 colormap
 
-c = hsv2rgb([5/12 1 0.4; 0.25 0.2 1; 5/72 1 0.4]);
+% c = hsv2rgb([5/12 1 0.4; 0.25 0.2 1; 5/72 1 0.4]);
+bright_green_hsv = [1/3, 1, 1]; 
+mid_green_hsv = [1/3, 1, .5];
+dark_green_hsv = [1/3, 1, .2];
+c = hsv2rgb([dark_green_hsv;mid_green_hsv;bright_green_hsv]);
+
 cmap = zeros(n,3);
 cmap(:,1) = interp1(1:3,c(:,1),linspace(1,3,n)); 
 cmap(:,2) = interp1(1:3,c(:,2),linspace(1,3,n));
