@@ -3,8 +3,10 @@
 online/
 Soumekh/
 *.pdf
+test.m
 
 # -----------------------MATLAB------------------------#
 
+*.mat
 *.asv
 *.MATLABDriveTag

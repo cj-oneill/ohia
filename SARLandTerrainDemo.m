@@ -15,23 +15,21 @@ clear; clc; close all;
 % 
 % For more information on key SAR concepts, see the <docid:radar_ug.example-ex92692601 
 % Stripmap Synthetic Aperture Radar (SAR) Image Formation> example.
+
 %% Generate Simulated Terrain
-% Generate and plot a random height map for the land surface. The height map 
-% will be representative of a hilly scene with peaks up to about 200 m. It is 
+% Generate and plot a random height map for the land surface. It is 
 % important to ensure that the terrain resolution is less than the resolution 
-% of the imaging system. Based on the configuration of the helper function, the 
-% resolution of the map will be a little more than 1 meter in the X dimension 
-% and about 1.6 in the Y dimension. To increase the resolution of the generated 
+% of the imaging system. To increase the resolution of the generated 
 % map, increase the number of iterations. The roughness factor is often set to 
 % a value of 2. Smaller values result in rougher terrain, and larger values result 
 % in smoother terrain. 
 
 % Initialize random number generator
-rng(2021)
+rng(2004)
 
 % Create terrain
-xLimits         = [1000 1040]; % x-axis limits of terrain (m)
-yLimits         = [-20 20]; % y-axis limits of terrain (m)
+xLimits         = [1000 1240]; % x-axis limits of terrain (m)
+yLimits         = [-100 100]; % y-axis limits of terrain (m)
 roughnessFactor = 1.8;       % Roughness factor
 initialHgt      = 3;          % Initial height (m)
 initialPerturb  = .5;        % Overall height of map (m) 
@@ -39,36 +37,37 @@ numIter         = 10;          % Number of iterations
 [x,y,A] = helperRandomTerrainGenerator(roughnessFactor,initialHgt, ....
     initialPerturb,xLimits(1),xLimits(2), ...
     yLimits(1),yLimits(2),numIter);
-A(A < 0) = 0; % Fill-in areas below 0
+A(A < 0) = 0; % Fill-in areas below 0, % This is redundant
 xvec = x(1,:); 
 yvec = y(:,1);
-resMapX = mean(diff(xvec));
-resMapY = mean(diff(yvec));
+resMapX = mean(diff(xvec))
+resMapY = mean(diff(yvec))
 % Plot simulated terrain
 helperPlotSimulatedTerrain(xvec,yvec,A)
-%% Specify the SAR System and Scenario
+%% Specify the SAR System and Flight Path
 % Define an L-band SAR imaging system with a range resolution approximately 
 % equal to 5 m. This system is mounted on an airborne platform flying at an altitude 
 % of 1000 meters. Verify the range resolution is as expected using the |bw2rangeres| 
 % function. 
 
 % Define key radar parameters
-freq = 9.7e9;                        % Carrier frequency (Hz)
+freqTable = [9.4e9 9.9e9]; 
+freq = mean(freqTable);                   % Carrier frequency (Hz)
 [lambda,c] = freq2wavelen(freq);   % Wavelength (m) 
 bw = 600e6;                         % Signal bandwidth (Hz)
 fs = 60e6;                         % Sampling frequency (Hz)
 tpd = 3e-6;                        % Pulse width (sec) 
+peakpower = 50e3;
+noisefigure = 30;                  % Noise Figure of Sat (dB)
 
 % Verify that the range resolution is as expected
 bw2rangeres(bw)
-%% 
 % Specify the antenna aperture as 6 meters. Set the squint angle to 0 degrees 
 % for broadside operation. 
 
 % Antenna properties
 apertureLength = 6;                % Aperture length (m) 
 sqa = 0;                           % Squint angle (deg)
-%% 
 % Set the platform velocity to 100 m/s and configure the platform geometry. 
 % The synthetic aperture length is 100 m as calculated by |sarlen|. 
 
@@ -80,20 +79,21 @@ sqa = 0;                           % Squint angle (deg)
 
 rdrhgt = 1000;
 v = 100;
-dur = 1;                         % Duration of flight (s) 
+dur = 1;                           % Duration of flight (s) 
 rdrpos1 = [0 0 rdrhgt];            % Start position of the radar (m)
 rdrvel = [0 v 0];                  % Radar plaform velocity
 rdrpos2 = rdrvel*dur + rdrpos1;    % End position of the radar (m)
 len = sarlen(v,dur);               % Synthetic aperture length (m)
-%% 
+
+%% Define Targets
 % Define the targets. The targets in this example are stationary and are intended 
 % to represent calibration targets. Set the target heights to 110 meters, relative 
 % to the surface. This height was selected such that targets may be occluded due 
 % to the hilly terrain. 
 
 % Configure the target platforms in x and y
-targetpos = [1000,len/2,0;1020,len/2,0;1040,len/2,0]; % Target positions (m)
-tgthgts = 110*ones(1,3); % Target height (m)
+targetpos = [xLimits(1),mean(yLimits),0;mean(xLimits),mean(yLimits),0;xLimits(2),mean(yLimits),0]; % Target positions (m)
+tgthgts = initialHgt*zeros(1,3); % Target height (m)
 for it = 1:3 
     % Set target height relative to terrain
     [~,idxX] = min(abs(targetpos(it,1) - xvec)); 
@@ -101,11 +101,11 @@ for it = 1:3
     tgthgts(it) = tgthgts(it) + A(idxX,idxY); 
     targetpos(it,3) = tgthgts(it); 
 end
-%% 
+
+%% Slant Range
 % Next, set the reference slant range, which is used in subsequent processing 
 % steps such as determining appropriate pointing angles for the radar antenna. 
-% Calculate the cross-range resolutions using the |sarazres| function. Based on 
-% the geometry and radar settings, the cross-range resolution is about 2 meters. 
+% Calculate the cross-range resolutions using the |sarazres| function.
 
 % Set the reference slant range for the cross-range processing
 rc = sqrt((rdrhgt - mean(tgthgts))^2 + (mean(targetpos(:,1)))^2);
@@ -116,7 +116,8 @@ grazang = depang; % Grazing angle (deg)
 
 % Azimuth resolution
 azResolution = sarazres(rc,lambda,len);  % Cross-range resolution (m)
-%% 
+
+%% PRF
 % Then, determine an appropriate pulse repetition frequency (PRF) for the SAR 
 % system. In a SAR system, the PRF has dual implications. The PRF not only determines 
 % the maximum unambiguous range but also serves as the sampling frequency in the 
@@ -127,11 +128,12 @@ azResolution = sarazres(rc,lambda,len);  % Cross-range resolution (m)
 
 % Determine PRF bounds 
 [swlen,swwidth] = aperture2swath(rc,lambda,apertureLength,grazang);
-[prfmin,prfmax] = sarprfbounds(v,azResolution,swlen,grazang)
-%% 
+[prfmin,prfmax] = sarprfbounds(v,azResolution,swlen,grazang);
+%
 % Select a PRF within the PRF bounds
 prf = 500; % Pulse repetition frequency (Hz)
-%% 
+
+%% Create Scene
 % Now that the parameters for the radar and targets are defined. Set up a radar 
 % scene using |radarScenario|. Add the radar platform and targets to the scene 
 % with |platform|. Set the target radar cross section (RCS) to 5 dBsm, and plot 
@@ -144,25 +146,26 @@ scene = radarScenario('UpdateRate',prf,'IsEarthCentered',false,'StopTime',dur);
 rdrplat = platform(scene,'Trajectory',kinematicTrajectory('Position',rdrpos1,'Velocity',[0 v 0]));
 
 % Add target platforms
-rcs = rcsSignature('Pattern',5); 
+rcs = rcsSignature('Pattern',5); % Gives a RCS of 5 to targets
 for it = 1:3
     platform(scene,'Position',targetpos(it,:),'Signatures',{rcs});
 end
 
 % Plot ground truth
 helperPlotGroundTruth(xvec,yvec,A,rdrpos1,rdrpos2,targetpos)
-%% 
+
+%% Define the Land Surface Reflectivity
+
 % Note that the terrain generated has been limited in range and cross-range 
 % to the expected beam location. This is to conserve memory, as well as to speed 
 % up the simulation. 
-%% Define the Land Surface Reflectivity
+
 % Now that the radar scenario and its platforms are set, define the land surface. 
 % First, select a reflectivity model. Radar Toolbox™ offers 7 different reflectivity 
 % models covering a wide range of frequencies, grazing angles, and land types. 
 % The asterisk denotes the default model. Type |help| |landreflectivity| or |doc| 
 % |landreflectivity| in the Command Window for more information on usage and applicable 
 % grazing angles for each model. The land reflectivity models are as follows. 
-%% 
 % * *APL:* Mathematical model supporting low to high grazing angles over frequencies 
 % in the range from 1 to 100 GHz. Land types supported are urban, high-relief, 
 % and low-relief. 
@@ -182,11 +185,11 @@ helperPlotGroundTruth(xvec,yvec,A,rdrpos1,rdrpos2,targetpos)
 % and mountains. 
 % * *Nathanson:* Empirical model for low to medium grazing angles over frequencies 
 % in the range from 1 to 36 GHz. Land types supported are desert, farm, woods, 
-% jungle, rolling hills, and urban. 
+% jungle, rolling hills, and urban.
 % * *Ulaby-Dobson:* Semi-empirical model for low to medium grazing angles over 
 % frequencies in the range from 1 to 18 GHz. Land types supported are soil, grass, 
 % shrubs, and short vegetation. 
-%% 
+
 % For this example, use the default Barton model, since it has such a large 
 % number of land types. For terrain values above 100 meters, assign reflectivity 
 % values for wooded hills. Otherwise, set reflectivity values to woods. Plot the 
@@ -194,19 +197,19 @@ helperPlotGroundTruth(xvec,yvec,A,rdrpos1,rdrpos2,targetpos)
 
 % Specify custom reflectivity map
 grazTable = 20:0.1:60;
-freqTable = [1e9 10e9]; 
-numSurfaces = 2;
+numSurfaces = 2; % Healthy & Infected
 reflectivityLayers = zeros(numel(grazTable),numel(freqTable),numSurfaces);
-reflectivityLayers(:,:,1) = landreflectivity('Woods', ...
+reflectivityLayers(:,:,1) = landreflectivity('Wooded Hills', ...
     grazTable,freqTable);
-reflectivityLayers(:,:,2) = landreflectivity('WoodedHills', ...
+reflectivityLayers(:,:,2) = landreflectivity('Woods', ...
     grazTable,freqTable);
 reflectivityType = ones(size(A)); 
-reflectivityType(A > 100) = 2; 
+reflectivityType(A > initialHgt) = 2; 
+% Use A variable to define healthy & infected trees
 
-% Plot custom reflectivity map
+% Plot custom reflectivity map, showing reflective layers
 helperPlotReflectivityMap(xvec,yvec,A,reflectivityType,rdrpos1,rdrpos2,targetpos)
-%% 
+
 % Next, compose the custom reflectivity map for use by radarScenario using |surfaceReflectivity|. 
 % Set the |Speckle| property to |Rayleigh|. The |surfaceReflectivity| objects 
 % model speckle as an uncorrelated multiplicative factor as 
@@ -220,13 +223,14 @@ helperPlotReflectivityMap(xvec,yvec,A,reflectivityType,rdrpos1,rdrpos2,targetpos
 % distribution's corresponding properties. For a Rayleigh distribution, you can 
 % modify the |SpeckleScale| property. 
 
-% reflectivityMap = surfaceReflectivity('Custom','Frequency',freqTable, ...
-%     'GrazingAngle',grazTable,'Reflectivity',reflectivityLayers, ...
-%     'Speckle','Rayleigh')
-surfaceReflectivityLand('Model','Nathanson','Frequency',freqTable, ...
-    'GrazingAngle',grazTable,'Speckle','Rayleigh','LandType','Woods')
-      %Choose LandType as 'Jungle'?
-%% 
+reflectivityMap = surfaceReflectivity('Custom','Frequency',freqTable, ...
+    'GrazingAngle',grazTable,'Reflectivity',reflectivityLayers, ...
+    'Speckle','Rayleigh');
+
+% reflectivityMap = surfaceReflectivityLand('Model','Nathanson','Frequency',freqTable, ...
+%     'GrazingAngle',grazTable,'Speckle','Rayleigh','LandType','Woods');
+%       %Choose LandType as 'Jungle'?
+
 % Add a land surface to the radar scenario using |landSurface|. Assign the random 
 % height map previously generated and the reflectivity map to the land surface. 
 
@@ -234,6 +238,7 @@ surfaceReflectivityLand('Model','Nathanson','Frequency',freqTable, ...
 s = landSurface(scene,'Terrain',A,'Boundary',[xLimits;yLimits], ...
     'RadarReflectivity',reflectivityMap, ...
     'ReflectivityMap',reflectivityType);
+
 %% Configure the Radar Transceiver
 % In this section, configure the radar system properties. Define the antenna 
 % and the transmitted linear frequency modulated (LFM) waveform. Assign the radar 
@@ -244,15 +249,15 @@ mountAngles = [0 depang 0];
 rdr = radarTransceiver('MountingAngles',mountAngles,'NumRepetitions',1);
 
 % Set peak power
-rdr.Transmitter.PeakPower = 50e3; 
+rdr.Transmitter.PeakPower = peakpower; 
 
 % Set receiver sample rate and noise figure
 rdr.Receiver.SampleRate = fs;
-rdr.Receiver.NoiseFigure = 30; 
+rdr.Receiver.NoiseFigure = noisefigure; 
 
 % Define transmit and receive antenna and corresponding parameters
 antbw = ap2beamwidth(apertureLength,lambda); 
-ant = phased.SincAntennaElement('FrequencyRange',[1e9 10e9],'Beamwidth',antbw);
+ant = phased.SincAntennaElement('FrequencyRange',freqTable,'Beamwidth',antbw);
 rdr.TransmitAntenna.Sensor = ant;
 rdr.TransmitAntenna.OperatingFrequency = freq;
 rdr.ReceiveAntenna.Sensor = ant;
@@ -267,6 +272,7 @@ rdr.Waveform = phased.LinearFMWaveform('SampleRate',fs,'PulseWidth',tpd, ...
 
 % Add radar to radar platform
 rdrplat.Sensors = rdr;
+
 %% Generate the Datacube
 % Now that the scene and the radar system are defined, generate returns from 
 % the land surface with the |clutterGenerator| method. By default, |clutterGenerator| 
@@ -369,7 +375,6 @@ for it = 1:3
     % Translate occlusion values to a visibility status
     helperGetVisibilityStatus(it,occ)
 end
-%% 
 % The first target is not visible at all, because it is occluded by the terrain. 
 % The second target is only partially visible throughout the collection. This 
 % causes missing data in the cross-range dimension, which results in the increased 
@@ -433,6 +438,9 @@ for ii = 2:numIter
     [x,y] = meshgrid(minX:dX:maxX,minY:dY:maxY);
     terrain = griddata(oldX,oldY,terrain,x,y);
     terrain = terrain + perturb*random('norm',0,1,1+2^ii,1+2^ii);
+    % terrain = initial height + roughness_coeff * normal distribution
+    % centered at 0, with std dev = 1, with array output size defined by
+    % last 2 args.
     terrain(terrain < 0) = 0; 
 end
 end
@@ -446,7 +454,6 @@ function cmap = landColormap(n)
 %
 % Output: 
 %    - cmap  = n-by-3 colormap
-
 % c = hsv2rgb([5/12 1 0.4; 0.25 0.2 1; 5/72 1 0.4]);
 bright_green_hsv = [1/3, 1, 1]; 
 mid_green_hsv = [1/3, 1, .5];
@@ -497,7 +504,7 @@ landmap = landColormap(64);
 colormap(landmap); 
 hPlatPath = plot3([rdrpos1(1) rdrpos2(1)], ...
     [rdrpos1(2) rdrpos2(2)],[rdrpos1(3) rdrpos2(3)], ...
-    '-k','LineWidth',2);
+    '-b','LineWidth',2);
 hPlatStart = plot3(rdrpos1(1),rdrpos1(2),rdrpos1(3), ...
     'o','LineWidth',2,'MarkerFaceColor','g','MarkerEdgeColor','k');
 hTgt = plot3(targetpos(:,1),targetpos(:,2),targetpos(:,3), ...
