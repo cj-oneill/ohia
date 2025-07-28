@@ -28,20 +28,21 @@ clear; clc; close all;
 rng(2004)
 
 % Create terrain
-xLimits         = [1000 1240]; % x-axis limits of terrain (m)
+xLimits         = [1000 1200]; % x-axis limits of terrain (m)
 yLimits         = [-100 100]; % y-axis limits of terrain (m)
-roughnessFactor = 1.8;       % Roughness factor
+roughnessFactor = 1.9;       % Roughness factor
 initialHgt      = 3;          % Initial height (m)
-initialPerturb  = .5;        % Overall height of map (m) 
-numIter         = 10;          % Number of iterations
+initialPerturb  = 0.3;        % Overall height of map (m) 
+numIter         = 7;          % Number of iterations
+valley_exp      = .8;
 [x,y,A] = helperRandomTerrainGenerator(roughnessFactor,initialHgt, ....
     initialPerturb,xLimits(1),xLimits(2), ...
-    yLimits(1),yLimits(2),numIter);
+    yLimits(1),yLimits(2),numIter,valley_exp);
 A(A < 0) = 0; % Fill-in areas below 0, % This is redundant
 xvec = x(1,:); 
 yvec = y(:,1);
-resMapX = mean(diff(xvec))
-resMapY = mean(diff(yvec))
+resMapX = mean(diff(xvec));
+resMapY = mean(diff(yvec));
 % Plot simulated terrain
 helperPlotSimulatedTerrain(xvec,yvec,A)
 %% Specify the SAR System and Flight Path
@@ -55,10 +56,10 @@ freqTable = [9.4e9 9.9e9];
 freq = mean(freqTable);                   % Carrier frequency (Hz)
 [lambda,c] = freq2wavelen(freq);   % Wavelength (m) 
 bw = 600e6;                         % Signal bandwidth (Hz)
-fs = 60e6;                         % Sampling frequency (Hz)
-tpd = 3e-6;                        % Pulse width (sec) 
-peakpower = 50e3;
-noisefigure = 30;                  % Noise Figure of Sat (dB)
+fs = 1200e6;                         % Sampling frequency (Hz)
+tpd = 10e-6;                        % Pulse width (sec) 
+peakpower = 1e3;
+noisefigure = 3;                  % Noise Figure of Sat (dB)
 
 % Verify that the range resolution is as expected
 bw2rangeres(bw)
@@ -131,7 +132,7 @@ azResolution = sarazres(rc,lambda,len);  % Cross-range resolution (m)
 [prfmin,prfmax] = sarprfbounds(v,azResolution,swlen,grazang);
 %
 % Select a PRF within the PRF bounds
-prf = 500; % Pulse repetition frequency (Hz)
+prf = 10e3; % Pulse repetition frequency (Hz)
 
 %% Create Scene
 % Now that the parameters for the radar and targets are defined. Set up a radar 
@@ -203,8 +204,49 @@ reflectivityLayers(:,:,1) = landreflectivity('Wooded Hills', ...
     grazTable,freqTable);
 reflectivityLayers(:,:,2) = landreflectivity('Woods', ...
     grazTable,freqTable);
-reflectivityType = ones(size(A)); 
-reflectivityType(A > initialHgt) = 2; 
+
+%% Reflectivity Type
+% Define A (heights)
+% --- Circle Generation Parameters (in meters) ---
+radiusMean = 3;   % Mean radius of circles in meters
+radiusStdDev = 1; % Standard deviation of circle radii in meters
+
+% --- Call the circle generation function ---
+% B is the matrix of tree IDs, numCircles is the total count of circles drawn
+[treeIdsMap, numCircles] = circleGen(x,y,A,radiusMean,radiusStdDev);
+
+% --- Generate new variable 'var1' ---
+% Percentage for choosing '1' (otherwise '2' is chosen)
+infBaseChance = 10; % Example: 70% chance for a 1, 30% for a 2
+
+% Initialize var1 with circle IDs in the first column
+treeIdsVec = (1:numCircles)'; % Column vector from 1 to numCircles
+
+% Generate random values (1 or 2) for the second column based on percentage
+random_choices = rand(numCircles, 1) * 100; % Random numbers between 0 and 100
+treeInf_second_column = ones(numCircles, 1); % Default to 1
+treeInf_second_column(random_choices > infBaseChance) = 2; % Set to 2 if random_choice is greater than percentage
+
+treeInf = [treeIdsVec, treeInf_second_column]; % Combine into a two-column matrix
+
+reflectivityType = zeros(size(treeIdsMap)); % Initialize C with zeros
+
+% Iterate through each cell of B
+for r = 1:size(treeIdsMap, 1)
+    for c = 1:size(treeIdsMap, 2)
+        circleID = treeIdsMap(r, c);
+        if circleID > 0 % Check if the cell is covered by a circle
+            % Find the row in var1 that corresponds to this circleID
+            % Since var1's first column is 1-indexed circle IDs, we can use it directly as an index
+            % (assuming circleIDs are sequential from 1 to numCircles)
+            if circleID <= numCircles % Ensure the circleID is valid within var1's range
+                reflectivityType(r, c) = treeInf(circleID, 2);
+            end
+        end
+    end
+end
+
+
 % Use A variable to define healthy & infected trees
 
 % Plot custom reflectivity map, showing reflective layers
@@ -322,14 +364,13 @@ helperUpdatePlotRawIQ(hRaw,raw);
 % area where it is evident that returns are present is the mainlobe of the antenna. 
 % If you want to image a larger region, a couple of changes you can implement 
 % are: 
-%% 
 % * Increase the altitude of the SAR imaging platform or 
 % * Increase the beamwidth. 
+
 %% Visualize SAR Data 
 % Focus the image using the range migration algorithm. The range-migration algorithm 
 % corrects for the range-azimuth coupling, as well as the azimuth-frequency dependence. 
-% The algorithm proceeds as:
-%% 
+% The algorithm proceeds as: 
 % # *FFT:* First, the algorithm performs a two-dimensional FFT. This transforms 
 % the SAR signal into wavenumber space. 
 % # *Matched Filtering:* Second, the algorithm focuses the image using a reference 
@@ -340,8 +381,7 @@ helperUpdatePlotRawIQ(hRaw,raw);
 % # *Stolt Interpolation:* Next is a differential focusing stage that uses Stolt 
 % interpolation to focus the remainder of the targets. 
 % # *IFFT:* Finally, a two-dimensional IFFT is performed to return the data 
-% to the time domain.
-%% 
+% to the time domain. 
 % Based on the radar waveform, use the |rangeMigrationLFM| function to form 
 % the single-look complex (SLC) image and plot the results. After range and cross-range 
 % processing, two targets can be distinguished from the background. 
@@ -350,7 +390,7 @@ helperUpdatePlotRawIQ(hRaw,raw);
 slcimg = rangeMigrationLFM(raw,rdr.Waveform,freq,v,rc);
 helperPlotSLC(slcimg,minSample,fs,v,prf,rdrpos1,targetpos, ...
     xvec,yvec,A)
-%% 
+
 % SAR images are similar to optical images, but the physics is quite different. 
 % Since SAR uses slant range to form images, higher elevation targets appear closer 
 % to the radar than lower elevation targets, resulting in higher elevation targets 
@@ -382,21 +422,19 @@ end
 % the target collection. It is bright and focused. 
 %% Summary
 % This example demonstrated how to generate IQ from a stripmap-based SAR scenario 
-% with three targets over land terrain. This example showed you how to: 
-%% 
+% with three targets over land terrain. This example showed you how to:  
 % * Configure the SAR radar parameters,
 % * Define the radar scenario,
 % * Build a custom reflectivity map, 
 % * Add terrain to the scene with added speckle, 
 % * Generate IQ, and 
-% * Form a focused SAR image.
-%% 
+% * Form a focused SAR image. 
 % This example can be easily modified for other platform geometries, radar parameters, 
 % and surface types. 
 % Supporting Functions
 
 function [x,y,terrain] = helperRandomTerrainGenerator(f,initialHeight, ...
-    initialPerturb,minX,maxX,minY,maxY,numIter)
+    initialPerturb,minX,maxX,minY,maxY,numIter,valley_exponent)
 %randTerrainGenerator Generate random terrain
 % [x,y,terrain] = helperRandomTerrainGenerator(f,initialHeight, ...
 %    initialPerturb,minX,maxX,minY,maxY,seaLevel,numIter)
@@ -429,6 +467,8 @@ dY = (maxY-minY)/2;
 [x,y] = meshgrid(minX:dX:maxX,minY:dY:maxY);
 terrain = ones(3,3)*initialHeight;
 perturb = initialPerturb;
+sigma = 2;
+smoothingKernel = fspecial('gaussian', [7 7],sigma);
 for ii = 2:numIter
     perturb = perturb/f;
     oldX = x;
@@ -438,6 +478,25 @@ for ii = 2:numIter
     [x,y] = meshgrid(minX:dX:maxX,minY:dY:maxY);
     terrain = griddata(oldX,oldY,terrain,x,y);
     terrain = terrain + perturb*random('norm',0,1,1+2^ii,1+2^ii);
+    terrain = imfilter(terrain, smoothingKernel, 'replicate');
+    % --- NEW: Height Remapping to control peaks and valleys ---
+    % Normalize terrain to a [0, 1] range temporarily for remapping
+    min_val = min(terrain(:));
+    max_val = max(terrain(:));
+    
+    if (max_val - min_val) > 1e-6 % Avoid division by zero for flat terrain
+        normalized_terrain = (terrain - min_val) / (max_val - min_val);
+        
+        % Apply power curve: x^exponent.
+        % If exponent > 1, it pushes lower values UP and spreads higher values.
+        % This makes valleys shallower and peaks wider/more prominent.
+        remapped_terrain = normalized_terrain .^ valley_exponent;
+        
+        % Scale back to original height range (or a desired range)
+        terrain = min_val + remapped_terrain * (max_val - min_val);
+    end
+    % --- END NEW ---
+
     % terrain = initial height + roughness_coeff * normal distribution
     % centered at 0, with std dev = 1, with array output size defined by
     % last 2 args.
@@ -526,35 +585,43 @@ function helperPlotReflectivityMap(xvec,yvec,A,reflectivityType,rdrpos1,rdrpos2,
 % Plot custom reflectivity map
 
 f = figure('Position',[505 443 997 535]);
-movegui(f,'center');
+% movegui(f,'center');
 % Plot boundary. Set plot boundary much lower than 0 for rendering reasons. 
-hLim = surf([0 1200],[-200 200].',-100*ones(2),'FaceColor',[0.8 0.8 0.8],'FaceAlpha',0.7);
+% hLim = surf([0 1200],[-200 200].',-100*ones(2),'FaceColor',[0.8 0.8 0.8],'FaceAlpha',0.7);
+view(3)
 hold on
 hS = surf(xvec,yvec,A,reflectivityType);
 hS.EdgeColor = 'none';
-hold on;
-colormap(summer(2));
-hC = colorbar;
-clim([1 2]); 
-hC.Ticks = [1 2];
-hC.TickLabels = {'Woods','Hills'};
-hC.Label.String = 'Land Type';
-hPlatPath = plot3([rdrpos1(1) rdrpos2(1)],[rdrpos1(2) rdrpos2(2)],[rdrpos1(3) rdrpos2(3)], ...
-    '-k','LineWidth',2);
-hPlatStart = plot3(rdrpos1(1),rdrpos1(2),rdrpos1(3), ...
-    'o','MarkerFaceColor','g','MarkerEdgeColor','k');
-hTgt = plot3(targetpos(:,1),targetpos(:,2),targetpos(:,3), ...
-    'o','MarkerFaceColor',[0.8500 0.3250 0.0980],'MarkerEdgeColor','k');
-view([26 75])
-xlabel('X (m)')
-ylabel('Y (m)')
-title('Reflectivity Map')
-axis tight; 
-zlim([-100 1200])
-legend([hLim,hS,hPlatPath,hPlatStart,hTgt], ...
-    {'Scene Limits','Reflectivity Map','Radar Path','Radar Start','Target'},'Location','SouthWest')
-drawnow
-pause(0.25)
+Green = [0 1 0];
+GreenBrown = [0.6 0.4 0.2];
+custom_colors_C = [Green; GreenBrown]; 
+
+colormap(custom_colors_C); % Apply the custom colormap for C
+
+disp('helo')
+% hold on;
+% colormap(summer(2));
+% hC = colorbar;
+% clim([1 2]); 
+% hC.Ticks = [1 2];
+% hC.TickLabels = {'Woods','Hills'};
+% hC.Label.String = 'Land Type';
+% hPlatPath = plot3([rdrpos1(1) rdrpos2(1)],[rdrpos1(2) rdrpos2(2)],[rdrpos1(3) rdrpos2(3)], ...
+%     '-k','LineWidth',2);
+% hPlatStart = plot3(rdrpos1(1),rdrpos1(2),rdrpos1(3), ...
+%     'o','MarkerFaceColor','g','MarkerEdgeColor','k');
+% hTgt = plot3(targetpos(:,1),targetpos(:,2),targetpos(:,3), ...
+%     'o','MarkerFaceColor',[0.8500 0.3250 0.0980],'MarkerEdgeColor','k');
+% view([26 75])
+% xlabel('X (m)')
+% ylabel('Y (m)')
+% title('Reflectivity Map')
+% axis tight; 
+% zlim([-100 1200])
+% legend([hLim,hS,hPlatPath,hPlatStart,hTgt], ...
+%     {'Scene Limits','Reflectivity Map','Radar Path','Radar Start','Target'},'Location','SouthWest')
+% drawnow
+% pause(0.25)
 end
 
 function hRaw = helperPlotRawIQ(raw,minSample)
