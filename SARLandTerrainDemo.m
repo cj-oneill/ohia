@@ -451,7 +451,8 @@ end
 % * Form a focused SAR image. 
 % This example can be easily modified for other platform geometries, radar parameters, 
 % and surface types. 
-% Supporting Functions
+
+%% Supporting Functions
 
 function [x,y,terrain] = helperRandomTerrainGenerator(f,initialHeight, ...
     initialPerturb,minX,maxX,minY,maxY,numIter,valley_exponent)
@@ -560,20 +561,27 @@ xlabel('X (m)')
 ylabel('Y (m)')
 axis equal;
 title('Simulated Terrain')
-view([78 78])
+view(3)
 drawnow
 pause(0.25)
+x_range = max(max(xvec))-min(min(xvec));
+y_range = max(max(yvec))-min(min(yvec));
+z_range = max(max(A)) - 0;
+zlim([0 max(max(A))])
+yx_ratio = y_range/x_range;
+zx_ratio = 2;
+zlim([0 max(max(A))])
+daspect([x_range y_range/yx_ratio z_range*zx_ratio]);
 end
 
 function helperPlotGroundTruth(xvec,yvec,A,rdrpos1,rdrpos2,targetpos)
 % Plot ground truth
 
-f = figure('Position',[505 443 997 535]);
-movegui(f,'center');
+figure
 % Plot boundary. Set plot boundary much lower than 0 for rendering reasons. 
-plot_boundary_x = [0 1200];
-plot_boundary_y = [-200 200];
-hLim = surf([0 1200],[-200 200].',-100*ones(2),'FaceColor',[0.8 0.8 0.8],'FaceAlpha',0.7);
+plot_boundary_x = [xvec(1) xvec(end)];
+plot_boundary_y = [yvec(1) yvec(end)];
+hLim = surf(plot_boundary_x,plot_boundary_y.',-100*ones(2),'FaceColor',[0.8 0.8 0.8],'FaceAlpha',0.7);
 hold on;
 hS = surf(xvec,yvec,A);
 hS.EdgeColor = 'none';
@@ -589,7 +597,7 @@ hPlatStart = plot3(rdrpos1(1),rdrpos1(2),rdrpos1(3), ...
 hTgt = plot3(targetpos(:,1),targetpos(:,2),targetpos(:,3), ...
     'o','LineWidth',2,'MarkerFaceColor',[0.8500 0.3250 0.0980], ...
     'MarkerEdgeColor','k');
-view([26 75])
+view(3)
 xlabel('Range (m)')
 ylabel('Cross-range (m)')
 title('Ground Truth')
@@ -599,12 +607,13 @@ legend([hLim,hS,hPlatPath,hPlatStart,hTgt], ...
     {'Scene Limits','Terrain','Radar Path','Radar Start','Target'},'Location','SouthWest')
 drawnow
 pause(0.25)
+
 end
 
 function helperPlotReflectivityMap(xvec,yvec,A,reflectivityType,rdrpos1,rdrpos2,targetpos)
 % Plot custom reflectivity map
 
-f = figure('Position',[505 443 997 535]);
+figure
 % movegui(f,'center');
 % Plot boundary. Set plot boundary much lower than 0 for rendering reasons. 
 % hLim = surf([0 1200],[-200 200].',-100*ones(2),'FaceColor',[0.8 0.8 0.8],'FaceAlpha',0.7);
@@ -612,13 +621,19 @@ view(3)
 hold on
 hS = surf(xvec,yvec,A,reflectivityType);
 hS.EdgeColor = 'none';
-Green = [0 1 0];
+dark_green_hsv = [1/3, 1, .2];
 GreenBrown = [0.6 0.4 0.2];
-custom_colors_C = [Green; GreenBrown]; 
+custom_colors_C = [dark_green_hsv; GreenBrown]; 
 
 colormap(custom_colors_C); % Apply the custom colormap for C
-
-disp('helo')
+axis off
+x_range = max(max(xvec))-min(min(xvec));
+y_range = max(max(yvec))-min(min(yvec));
+z_range = max(max(A)) - 0;
+yx_ratio = y_range/x_range;
+zx_ratio = 2;
+zlim([0 max(max(A))])
+daspect([x_range y_range/yx_ratio z_range*zx_ratio]);
 % hold on;
 % colormap(summer(2));
 % hC = colorbar;
