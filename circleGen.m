@@ -101,22 +101,22 @@ function [B, circleIndexCounter] = circleGen(x_grid,y_grid,A,radiusMean,radiusSt
     fprintf('Circle generation complete.\n');
     fprintf('Total circles drawn: %d\n', circleIndexCounter);
 
-
-    % --- Visualize Matrix B (simple heatmap) ---
-    figure;
-    % Use x_grid(1,:) and y_grid(:,1) for axes, as they represent the meter ranges
-    imagesc(x_grid(1,:), y_grid(:,1), B);
-    colorbar;   % Show color scale
-    colormap(jet); % Using 'jet' for a more traditional rainbow
-    axis xy; % Ensure y-axis is oriented correctly for imagesc
-    axis equal tight; % Keep aspect ratio and remove extra space
-    title('Matrix B: Lowest Circle Index for Each Cell');
-    xlabel('X (meters)');
-    ylabel('Y (meters)');
+    % 
+    % % --- Visualize Matrix B (simple heatmap) ---
+    % figure;
+    % % Use x_grid(1,:) and y_grid(:,1) for axes, as they represent the meter ranges
+    % imagesc(x_grid(1,:), y_grid(:,1), B);
+    % colorbar;   % Show color scale
+    % colormap(jet); % Using 'jet' for a more traditional rainbow
+    % axis xy; % Ensure y-axis is oriented correctly for imagesc
+    % axis equal tight; % Keep aspect ratio and remove extra space
+    % title('Matrix B: Lowest Circle Index for Each Cell');
+    % xlabel('X (meters)');
+    % ylabel('Y (meters)');
 
     % --- Plot B on the 3D surface of A ---
     figure; % Create a new figure for the 3D plot
-
+    hold on
     num_unique_circles = max(B(:));
     if num_unique_circles == 0
         num_unique_circles = 1; % Avoid division by zero if no circles are drawn
@@ -138,4 +138,12 @@ function [B, circleIndexCounter] = circleGen(x_grid,y_grid,A,radiusMean,radiusSt
     zlabel('Height (meters)');
     view(3); % Set the default 3D view
     axis tight; % Adjust axis limits to tightly fit the data
+    x_range = max(max(x_grid))-min(min(x_grid));
+    y_range = max(max(y_grid))-min(min(y_grid));
+    z_range = max(max(A)) - 0;
+    zlim([0 max(max(A))])
+    yx_ratio = y_range/x_range;
+    zx_ratio = 2;
+    zlim([0 max(max(A))])
+    daspect([x_range y_range/yx_ratio z_range*zx_ratio]);    hold off
 end
