@@ -27,18 +27,33 @@ clear; clc; close all;
 % Initialize random number generator
 rng(2004)
 
-% Create terrain
-xLimits         = [1000 1200]; % x-axis limits of terrain (m)
-yLimits         = [-100 100]; % y-axis limits of terrain (m)
-roughnessFactor = 1.9;       % Roughness factor
-initialHgt      = 3;          % Initial height (m)
-initialPerturb  = 0.3;        % Overall height of map (m) 
-numIter         = 7;          % Number of iterations
-valley_exp      = .8;
-[x,y,A] = helperRandomTerrainGenerator(roughnessFactor,initialHgt, ....
-    initialPerturb,xLimits(1),xLimits(2), ...
-    yLimits(1),yLimits(2),numIter,valley_exp);
-A(A < 0) = 0; % Fill-in areas below 0, % This is redundant
+
+xLimits         = [500000 501000]; % x-axis limits of terrain (m)
+yLimits         = [-200 200]; % y-axis limits of terrain (m)
+numIter = 8;         % Corresponds to 2^8+1 = 257 grid size
+xmin = xLimits(1); xmax = xLimits(2);
+ymin = yLimits(1); ymax = yLimits(2);
+
+roughness = 1.8;     % Lower value for more bumpiness
+initialHgt = 3;  % Base height of the forest
+initialPerturb = 2; % Tree heights vary by about +/- 20
+peakSharpness = 1.5; % Make valleys shallower to represent dense canopy
+smoothing = 2;     % Smooth the tops of the trees
+
+[x, y, A] = helperForestCanopyGenerator(numIter, xmin, xmax, ymin, ymax, roughness, initialHgt, initialPerturb, peakSharpness, smoothing)
+
+
+% % Create terrain
+% xLimits         = [1000 1200]; % x-axis limits of terrain (m)
+% yLimits         = [-100 100]; % y-axis limits of terrain (m)
+% roughnessFactor = 1.9;       % Roughness factor
+% initialHgt      = 3;          % Initial height (m)
+% initialPerturb  = 0.3;        % Overall height of map (m) 
+% numIter         = 7;          % Number of iterations
+% valley_exp      = .8;
+% [x,y,A] = helperRandomTerrainGenerator(roughnessFactor,initialHgt, ....
+%     initialPerturb,xLimits(1),xLimits(2), ...
+%     yLimits(1),yLimits(2),numIter,valley_exp);
 xvec = x(1,:); 
 yvec = y(:,1);
 resMapX = mean(diff(xvec));
