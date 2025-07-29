@@ -225,15 +225,20 @@ treeIdsVec = (1:numCircles)'; % Column vector from 1 to numCircles
 % Generate random values (1 or 2) for the second column based on percentage
 random_choices = rand(numCircles, 1) * 100; % Random numbers between 0 and 100
 treeInf_second_column = ones(numCircles, 1); % Default to 1
-treeInf_second_column(random_choices > infBaseChance) = 2; % Set to 2 if random_choice is greater than percentage
+treeInf_second_column(random_choices < infBaseChance) = 2; % Set to 2 if random_choice is greater than percentage
 
-treeInf = [treeIdsVec, treeInf_second_column]; % Combine into a two-column matrix
+treeInf = [treeIdsVec, treeInf_second_column];
+% treeID Healthy=1;Infected=2
+% example:
+% 149 2
+% 150 1
+% 151 1
 
-reflectivityType = zeros(size(treeIdsMap)); % Initialize C with zeros
+reflectivityType = zeros(size(treeIdsMap)); 
 
-% Iterate through each cell of B
-for r = 1:size(treeIdsMap, 1)
-    for c = 1:size(treeIdsMap, 2)
+% Iterate through each cell
+for r = 1:size(treeIdsMap, 1) %rows
+    for c = 1:size(treeIdsMap, 2) %columns
         circleID = treeIdsMap(r, c);
         if circleID > 0 % Check if the cell is covered by a circle
             % Find the row in var1 that corresponds to this circleID
