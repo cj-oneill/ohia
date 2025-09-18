@@ -26,6 +26,7 @@ function [B, circleIndexCounter] = circleGen(x_grid,y_grid,A,radiusMean,radiusSt
     % --- Main Logic to Draw Circles ---
     fprintf('Starting circle generation...\n');
     totalCells = rows * cols;
+    fprintf('Circles to draw: %i\n', totalCells)
     coveredCount = 0;
     iteration = 0;
     maxIterations = totalCells * 2; % Safety break to prevent infinite loops
@@ -94,8 +95,8 @@ function [B, circleIndexCounter] = circleGen(x_grid,y_grid,A,radiusMean,radiusSt
         coveredCount = sum(coveredCells(:));
         iteration = iteration + 1;
 
-        fprintf('Iteration %d: Covered %d/%d cells. Circles drawn: %d\n', ...
-                iteration, coveredCount, totalCells, circleIndexCounter);
+        % fprintf('Iteration %d: Covered %d/%d cells. Circles drawn: %d\n', ...
+        %         iteration, coveredCount, totalCells, circleIndexCounter);
     end
 
     fprintf('Circle generation complete.\n');
